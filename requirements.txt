@@ -1,0 +1,8 @@
+PyQt5>=5.15
+PyQtWebEngine>=5.15
+flask>=3.0
+flask-socketio>=5.3
+python-socketio>=5.11
+pynput>=1.7
+qrcode[pil]>=7.4
+requests>=2.31

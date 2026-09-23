@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>{{ app_name }}</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0a0d; --panel:#121218; --edge:#242430; --accent:#b98cff;
+    --accent2:#7c5cff; --text:#f2f0f8; --muted:#8a8a9a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:
+      radial-gradient(1200px 600px at 50% -10%, #1b1730 0%, var(--bg) 60%);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .card{
+    width:100%; max-width:420px; background:var(--panel); border:1px solid var(--edge);
+    border-radius:18px; padding:28px 24px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  h1{ font-size:20px; margin:0 0 4px; letter-spacing:.3px; }
+  .sub{ color:var(--muted); font-size:13px; margin-bottom:22px; }
+  .row{ display:flex; justify-content:space-between; font-size:13px; margin:8px 0; color:var(--muted); }
+  .row a{ color:var(--accent); text-decoration:none; }
+  input.pin{
+    width:100%; text-align:center; letter-spacing:10px; font-size:26px; padding:14px 0;
+    background:#0d0d12; border:1px solid var(--edge); border-radius:12px; color:var(--text);
+    margin:16px 0;
+  }
+  .btns{ display:flex; gap:12px; margin-top:8px; }
+  button{
+    flex:1; padding:14px 0; border-radius:12px; border:none; font-size:15px; font-weight:600;
+    cursor:pointer;
+  }
+  .allow{ background:linear-gradient(135deg,var(--accent2),var(--accent)); color:#fff; }
+  .cancel{ background:transparent; border:1px solid var(--edge); color:var(--muted); }
+  .err{ color:#ff6b81; font-size:13px; min-height:18px; text-align:center; margin-top:6px; }
+
+  /* keyboard forwarder screen */
+  #kbScreen{ display:none; }
+  .status{ text-align:center; font-size:13px; color:var(--muted); margin-bottom:14px; }
+  .status.on{ color:#7CFFB2; }
+  textarea#capture{
+    width:100%; height:120px; background:#0d0d12; border:1px solid var(--edge);
+    border-radius:12px; color:var(--text); font-size:16px; padding:12px; resize:none;
+  }
+  .keys{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
+  .keys button{ background:#1a1a24; border:1px solid var(--edge); color:var(--text); font-weight:500; padding:12px 0; }
+</style>
+</head>
+<body>
+
+<div class="card" id="consentScreen">
+  <h1>{{ app_name }}</h1>
+  <div class="sub">Turn this phone into a wireless keyboard for your PC. No app installation required.</div>
+
+  <div class="row"><span>Developer</span><a href="{{ dev_site }}" target="_blank">{{ dev_name }}</a></div>
+  <div class="row"><span>Terms &amp; Conditions</span><a href="{{ terms_url }}" target="_blank">View</a></div>
+
+  <input class="pin" id="pinInput" inputmode="numeric" maxlength="6" placeholder="------">
+
+  <div class="err" id="errMsg"></div>
+
+  <div class="btns">
+    <button class="cancel" onclick="onCancel()">Cancel</button>
+    <button class="allow" onclick="onAllow()">Allow &amp; Continue</button>
+  </div>
+</div>
+
+<div class="card" id="kbScreen">
+  <h1>{{ app_name }}</h1>
+  <div class="status" id="connStatus">Connecting...</div>
+  <textarea id="capture" autocapitalize="off" autocorrect="off" spellcheck="false"
+            placeholder="Tap here and start typing — text goes straight to your PC"></textarea>
+  <div class="keys">
+    <button onclick="sendSpecial('enter')">Enter</button>
+    <button onclick="sendSpecial('backspace')">⌫</button>
+    <button onclick="sendSpecial('space')">Space</button>
+    <button onclick="sendSpecial('tab')">Tab</button>
+    <button onclick="sendSpecial('left')">←</button>
+    <button onclick="sendSpecial('up')">↑</button>
+    <button onclick="sendSpecial('down')">↓</button>
+    <button onclick="sendSpecial('right')">→</button>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const prefillPin = params.get('pin') || '';
+  document.getElementById('pinInput').value = prefillPin;
+
+  let socket = null;
+  let lastValue = '';
+
+  function onCancel(){
+    document.getElementById('consentScreen').innerHTML =
+      '<h1>{{ app_name }}</h1><div class="sub">Cancelled. You can close this tab.</div>';
+  }
+
+  function onAllow(){
+    const pin = document.getElementById('pinInput').value.trim();
+    const errEl = document.getElementById('errMsg');
+    if (pin.length < 4){ errEl.textContent = 'Enter the PIN shown on your PC.'; return; }
+    errEl.textContent = '';
+
+    socket = io();
+    socket.on('connect', () => socket.emit('pair', { pin }));
+    socket.on('pair_result', (res) => {
+      if (res.ok){
+        document.getElementById('consentScreen').style.display = 'none';
+        document.getElementById('kbScreen').style.display = 'block';
+        const status = document.getElementById('connStatus');
+        status.textContent = 'Connected — paired with PC';
+        status.classList.add('on');
+        document.getElementById('capture').focus();
+      } else {
+        errEl.textContent = 'Wrong PIN. Try again.';
+      }
+    });
+    socket.on('disconnect', () => {
+      const status = document.getElementById('connStatus');
+      status.textContent = 'Disconnected';
+      status.classList.remove('on');
+    });
+  }
+
+  const capture = document.getElementById('capture');
+  capture.addEventListener('input', () => {
+    const value = capture.value;
+    if (value.length > lastValue.length && value.startsWith(lastValue)){
+      const added = value.slice(lastValue.length);
+      if (socket) socket.emit('key', { type: 'text', value: added });
+    } else if (value.length < lastValue.length) {
+      const removed = lastValue.length - value.length;
+      for (let i = 0; i < removed; i++){
+        if (socket) socket.emit('key', { type: 'special', value: 'backspace' });
+      }
+    } else if (value !== lastValue) {
+      // full replace (autocorrect etc.) — just resend the whole thing
+      if (socket) socket.emit('key', { type: 'text', value });
+    }
+    lastValue = value;
+    // keep the box short so 'input' diffing stays cheap
+    if (capture.value.length > 200){
+      capture.value = '';
+      lastValue = '';
+    }
+  });
+
+  function sendSpecial(key){
+    if (socket) socket.emit('key', { type: 'special', value: key });
+  }
+</script>
+</body>
+</html>
