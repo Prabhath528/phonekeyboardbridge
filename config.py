@@ -11,8 +11,8 @@ TERMS_URL = "https://termsandconditionsa.netlify.app/"
 
 # GitHub release used to download "core assets" (images/icons/etc.) on first run.
 # The release must contain a single asset named ASSETS_ZIP_NAME.
-GITHUB_OWNER = "your-github-username"
-GITHUB_REPO = "your-repo-name"
+GITHUB_OWNER = "Prabhath528"
+GITHUB_REPO = "phonekeyboardbridge"
 ASSETS_ZIP_NAME = "core_assets.zip"
 
 # Local folder where the downloaded assets get extracted (relative to app data dir)
